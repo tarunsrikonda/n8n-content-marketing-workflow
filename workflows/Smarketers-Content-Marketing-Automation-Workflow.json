@@ -1,0 +1,1562 @@
+{
+  "name": "Clone - Smarketers Content Marketing Automation v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -240,
+        -1456
+      ],
+      "id": "6f9a4d87-a49b-4837-a95f-9dfaf1b1fe27",
+      "name": "Schedule Trigger",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "url": "={{$json.trendsApiUrl}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_trends"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.niche }}"
+            },
+            {
+              "name": "hl",
+              "value": "en"
+            },
+            {
+              "name": "geo",
+              "value": "IN"
+            },
+            {
+              "name": "data_type",
+              "value": "RELATED_QUERIES"
+            },
+            {
+              "name": "api_key",
+              "value": "Add your API key here"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        208,
+        -1456
+      ],
+      "id": "4793b0bf-f476-4e20-b449-ea358f03e891",
+      "name": "Get Google Trends"
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google"
+            },
+            {
+              "name": "q",
+              "value": "={{ $('Topic Configurations').item.json.niche }}"
+            },
+            {
+              "name": "hl",
+              "value": "en"
+            },
+            {
+              "name": "gl",
+              "value": "IN"
+            },
+            {
+              "name": "api_key",
+              "value": "Add your API key here"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        432,
+        -1456
+      ],
+      "id": "5ebd93d5-8d92-4ae5-9af1-80d71da74fbc",
+      "name": "Get Keywords"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Read outputs from both HTTP nodes\nconst trendsJson = $items('Get Google Trends')[0].json;\nconst keywordsJson = $items('Get Keywords')[0].json;\n\nconst topics = [];\n\n// 2) From Google Trends (RELATED_QUERIES)\nconst rq = trendsJson.related_queries || {};\nconst sets = [\n  ...(rq.top || []),\n  ...(rq.rising || []),\n];\n\nfor (const item of sets) {\n  if (!item.query) continue;\n  topics.push({\n    topic: item.query,\n    trendScore: item.value ?? null,\n    source: 'trends',\n  });\n}\n\n// 3) From Google Search related_searches via SerpAPI\nfor (const rs of (keywordsJson.related_searches || [])) {\n  if (!rs.query) continue;\n  topics.push({\n    topic: rs.query,\n    trendScore: null,\n    source: 'related_search',\n  });\n}\n\n// 4) Preserve config fields from Edit Fields\nreturn [{\n  json: {\n    topics,\n    niche: $json.niche,\n    targetAudience: $json.targetAudience,\n    brandVoice: $json.brandVoice,\n    wpBaseUrl: $json.wpBaseUrl,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -1456
+      ],
+      "id": "409bdfb7-9bb6-43af-b3fc-ed0877018328",
+      "name": "Merge Topics"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Niche: \n{{ $('Topic Configurations').item.json.niche }}\nCandidate topics (JSON):\n{{ JSON.stringify($json.topics, null, 2) }}",
+        "options": {
+          "systemMessage": "You are a senior B2B marketing content strategist.\nFrom the provided topics, pick the 3–5 best for high-intent, high-impact blog posts about Account Based Marketing.\n\nReturn only a JSON array. Each item must have:\n- title (click-worthy but not clickbait, <= 70 characters)\n- primaryKeyword\n- secondaryKeywords (3–7 items)\n- searchIntent (one of: informational, commercial)\n- angle (unique point of view for B2B marketers)\n- reason (1–2 sentences explaining why this topic is valuable)\n\nDo not include any extra text, explanations, or markdown outside the JSON array."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        880,
+        -1456
+      ],
+      "id": "23201ebf-bb94-432c-ba8c-23489e2e4504",
+      "name": "Topic Research AI Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// The agent returns: { output: \"<JSON string>\" }\nconst raw = $json.output || $json;   // handle both cases\n\n// If it's already an array, keep it; otherwise parse the string\nconst arr = Array.isArray(raw) ? raw : JSON.parse(raw);\n\n// Return one item per topic so Split In Batches can use it\nreturn arr.map(topic => ({ json: topic }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        -1456
+      ],
+      "id": "7c345369-9e36-4bf4-91f2-5320db6ac0f8",
+      "name": "Parse Topics"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1456,
+        -1456
+      ],
+      "id": "4321d30f-4d9c-47c7-8597-412452e91e87",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 1500,
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -1232
+      ],
+      "id": "223cb578-25ab-4ab4-9300-6f157cf00101",
+      "name": "Groq Chat Model - Topics",
+      "credentials": {
+        "groqApi": {
+          "id": "Add your API key here",
+          "name": "Groq account"
+        }
+      },
+      "notes": "Model Used: llama‑3.3‑70b‑versatile (Groq)"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 1500,
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        -1232
+      ],
+      "id": "a5cc79e7-9650-44a6-9f87-e59152b0c746",
+      "name": "Groq Chat Model - Brief",
+      "credentials": {
+        "groqApi": {
+          "id": "Add your API key here",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is the selected topic in JSON:\n{{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "systemMessage": "You are a content lead at The Smarketers.\nCreate a client-ready B2B marketing blog brief using the topic details provided in the user message.\n\nReturn only JSON with:\n- title\n- targetAudience\n- goal\n- primaryKeyword\n- secondaryKeywords (3–7 items)\n- toneOfVoice\n- estimatedWordCount (1200–1800)\n- outline (array of sections with h2, optional h3, and bullet notes)\n- keyTalkingPoints (5–10 bullets)\n- internalLinksIdeas (3–5 suggestions)\n\nDo not include any text outside the JSON."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1680,
+        -1456
+      ],
+      "id": "d7bc5f71-4ffc-4bdc-b2bc-4e6d314d0b60",
+      "name": "Brief AI Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is the blog brief (JSON):\n{{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "systemMessage": "You are a senior B2B marketing content writer at The Smarketers.\nWrite a long-form blog article from the brief you receive.\n\nRequirements:\n- 1200–1800 words (use the estimatedWordCount as guidance).\n- Use Markdown with:\n  - One H1 title at the top.\n  - H2/H3 headings that follow the outline fields (outline.h2 and outline.h3).\n- Naturally incorporate the primaryKeyword in the title, introduction, and at least one subheading.\n- Use all secondaryKeywords where they fit, without keyword stuffing.\n- Cover the keyTalkingPoints clearly in the body.\n- Keep the tone aligned with toneOfVoice in the brief.\n\nEnding section:\n- Include a short, persuasive final section that summarizes the value and gently encourages the reader to take the next step (e.g., review their current strategy, talk to their team, or explore solutions).\n- The heading for this section must be neutral, such as “Next Steps for Your ABM Strategy”, “Bringing It All Together”, or “Moving Forward”.\n- Do NOT use the words “call to action”, “CTA”, “Conclusion and Call to Action”, or similar phrases in any heading.\n\nOutput only the article in Markdown (no JSON, no explanations)."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2256,
+        -1456
+      ],
+      "id": "e6d11fcf-a98d-49ab-bf1c-6f0a71485cbb",
+      "name": "Draft AI Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Brief AI Agent returns something like { output: \"<JSON string>\" }\n// or directly the JSON object. Normalize it.\n\nconst raw = $json.output || $json;\n\n// If already an object, just return it.\nif (raw && typeof raw === 'object') {\n  return [{ json: raw }];\n}\n\n// If it's a string, parse it as JSON.\nif (typeof raw === 'string') {\n  // Trim whitespace\n  let cleaned = raw.trim();\n\n  // Optionally strip leading `````` and trailing ```\n  if (cleaned.startsWith('```')) {\n    // Remove first line (``````json)\n    const lines = cleaned.split('\\n');\n    lines.shift();\n    // If last line is ```\n    if (lines[lines.length - 1].trim() === '```') {\n      lines.pop();\n    }\n    cleaned = lines.join('\\n').trim();\n  }\n\n  const obj = JSON.parse(cleaned);\n  return [{ json: obj }];\n}\n\n// Fallback\nthrow new Error('Unexpected brief format: ' + typeof raw);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        -1456
+      ],
+      "id": "41c84319-ae90-45e6-be0b-a4a235e50b1f",
+      "name": "Parse Brief"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        -1232
+      ],
+      "id": "74c7ca9b-c1c8-4f2d-9140-f84a5cd67835",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "Add your API key here",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is the current article in Markdown:\n{{$json.output}}\n\nOptimize it for both traditional SEO and AI search.",
+        "options": {
+          "systemMessage": "You are an SEO & AI search optimization specialist for The Smarketers.\n\nGiven a B2B blog article in Markdown, you must:\n- Keep the structure and meaning, but improve clarity, flow, and keyword usage.\n- Ensure there is exactly one H1 at the top, and clear H2/H3 hierarchy.\n- Optimize for the primary keyword and related phrases without keyword stuffing.\n- Add or refine:\n  - SEO title (<= 60 characters)\n  - Meta description (140–160 characters)\n  - URL slug (kebab-case)\n  - 3–5 FAQs suitable for FAQ schema (short Q&A)\n\nReturn ONLY JSON with:\n– optimizedArticleHtml: the full article body as valid HTML using <h1>, <h2>, <p>, <ul>, <ol>, <li>, <strong>, <em> etc.\n– seoTitle\n– metaDescription\n– slug\n– faqSection (array of {question, answer})"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2608,
+        -1456
+      ],
+      "id": "651e23c6-47ff-414a-bc3c-dccdac14b557",
+      "name": "SEO Optimization Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2688,
+        -1232
+      ],
+      "id": "1340e68d-871f-4b6b-9288-e0bbe46efc2f",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "Add your API key here",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Get raw output (string or object)\nlet raw = $json.output || $json;\n\n// If it's already an object, just map it directly\nif (typeof raw === 'object') {\n  return [{\n    json: {\n      optimizedArticleHtml: raw.optimizedArticleHtml,\n      seoTitle: raw.seoTitle,\n      metaDescription: raw.metaDescription,\n      slug: raw.slug,\n      faqSection: raw.faqSection,\n    },\n  }];\n}\n\n// From here on, raw is a string like ``````\nlet text = raw.trim();\n\n// Remove ```\nif (text.startsWith('```')) {\n  const lines = text.split('\\n');\n  // Remove first line: ``````)\n  lines.shift();\n\n  // If last line is ```\n  if (lines.length && lines[lines.length - 1].trim() === '```') {\n    lines.pop();\n  }\n\n  text = lines.join('\\n').trim();\n}\n\n// Now text is still not valid JSON because optimizedArticleHtml contains raw newlines.\n// Extract fields with simple regex instead of JSON.parse.\n\nfunction matchField(name) {\n  const re = new RegExp(`\"${name}\"\\\\s*:\\\\s*\"([\\\\s\\\\S]*?)\"\\\\s*(,|\\\\n)`);\n  const m = text.match(re);\n  return m ? m[1] : '';\n}\n\nconst optimizedArticleHtml = matchField('optimizedArticleHtml').trim();\nconst seoTitle = matchField('seoTitle');\nconst metaDescription = matchField('metaDescription');\nconst slug = matchField('slug');\n\n// faqSection is an array; parse just that slice\nlet faqSection = [];\nconst faqMatch = text.match(/\"faqSection\"\\s*:\\s*(\\[[\\s\\S]*\\])\\s*\\n?\\}/);\n\nif (faqMatch) {\n  try {\n    faqSection = JSON.parse(faqMatch[1]);\n  } catch (e) {\n    faqSection = [];\n  }\n}\n\nreturn [{\n  json: {\n    optimizedArticleHtml,\n    seoTitle,\n    metaDescription,\n    slug,\n    faqSection,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        -1456
+      ],
+      "id": "9a780f46-3ad0-45b2-adc9-9d4f6c71447c",
+      "name": "Parse SEO Output"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        3264,
+        -1232
+      ],
+      "id": "25eec9a4-7ea5-4ee3-8f74-00dbfa367d37",
+      "name": "Groq Chat Model2",
+      "credentials": {
+        "groqApi": {
+          "id": "Add your API key here",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=SEO title: {{$json.seoTitle}}\n\nHere is the article in HTML for context:\n{{ $json.optimizedArticleHtml }}",
+        "options": {
+          "systemMessage": "You are a creative director for B2B SaaS and B2B marketing content.\nCreate a concise text-to-image prompt for a hero illustration that:\n- Fits the SEO title and article topic.\n- Uses an abstract or semi-abstract business/marketing visual.\n- Contains no real logos, no text inside the image, and no recognizable people.\n\nReturn ONLY JSON:\n{\n  \"promptBase\": \"...\",\n  \"negativePrompt\": \"blurry, text, logo, watermark, low quality\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3184,
+        -1456
+      ],
+      "id": "c2af5bc1-42e2-4603-8f22-5942763ac359",
+      "name": "Image Prompt AI Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Get raw output (string or object)\nlet raw = $json.output || $json;\n\n// 2) If it's a string, strip optional ```json fences and parse JSON\nif (typeof raw === 'string') {\n  let text = raw.trim();\n\n  // If the text starts with ```\n  if (text.startsWith('```')) {\n    const lines = text.split('\\n');\n    // remove first line: ``````json\n    lines.shift();\n    // if last line is ```\n    if (lines.length && lines[lines.length - 1].trim() === '```') {\n      lines.pop();\n    }\n    text = lines.join('\\n').trim();\n  }\n\n  raw = JSON.parse(text);\n}\n\n// 3) raw is now the real object with fields from the SEO agent\nreturn [{\n  json: {\n    promptBase: raw.promptBase,\n    negativePrompt: raw.negativePrompt\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3536,
+        -1456
+      ],
+      "id": "1fa06425-96bb-4074-bc35-c5d1f501ecdc",
+      "name": "Parse Image Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloudflare.com/client/v4/accounts/653ded4ca58cc4080175f9466f2a269b/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <Add your API key here>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{$json.promptBase}}"
+            },
+            {
+              "name": "negative_prompt",
+              "value": "={{$json.negativePrompt}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3760,
+        -1456
+      ],
+      "id": "14185898-23d7-4620-920e-565fd5f9e963",
+      "name": "Workers AI Image Gen"
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "destinationKey": "imageBase64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        3984,
+        -1456
+      ],
+      "id": "5dc7b810-7737-4ae6-a048-19c748519203",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://freeimage.host/api/1/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "Add your API key here"
+            },
+            {
+              "name": "action",
+              "value": "upload"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.imageBase64 }}"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4208,
+        -1456
+      ],
+      "id": "c545de3b-92ca-4a4a-9f10-71a00221e949",
+      "name": "Upload to FreeImage Host"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "823a12ad-32d0-42ae-84e2-a556b9e5712b",
+              "name": "imageUrl",
+              "value": "={{ $json.image.url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4432,
+        -1456
+      ],
+      "id": "f5e9d943-1ecb-4c21-9c15-575b1f5c7632",
+      "name": "Set ImageURL"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://public-api.wordpress.com/wp/v2/sites/automatewithtarun.wordpress.com/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $('Parse SEO Output').item.json.seoTitle }}"
+            },
+            {
+              "name": "content",
+              "value": "={{\"<p><img src=\\\"\" + $json.imageUrl + \"\\\" alt=\\\"Generated image\\\" /></p>\\n\\n\" + $('Parse SEO Output').item.json.optimizedArticleHtml}}"
+            },
+            {
+              "name": "status",
+              "value": "draft"
+            },
+            {
+              "name": "slug",
+              "value": "={{ $('Parse SEO Output').item.json.slug }}"
+            },
+            {
+              "name": "excerpt",
+              "value": "={{ $('Parse SEO Output').item.json.metaDescription }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4656,
+        -1456
+      ],
+      "id": "086d2cee-ad4d-4c49-8d0e-476f6bc65a68",
+      "name": "Create WP Post",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "Add your API key here",
+          "name": "WordPress Authorization OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d8af555f-098c-47c5-a843-a37dcfa43272",
+              "name": "postId",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "id": "4775cca0-94f0-4823-b64b-7b21215321f9",
+              "name": "postUrl",
+              "value": "={{$json.link}}",
+              "type": "string"
+            },
+            {
+              "id": "477ab078-dcdf-4d13-b50f-4d0138145e6c",
+              "name": "postTitle",
+              "value": "={{$json.title.rendered}}",
+              "type": "string"
+            },
+            {
+              "id": "4becd8d5-8a62-4936-8f87-34120bf966dc",
+              "name": "seoTitle",
+              "value": "={{$('Parse SEO Output').item.json.seoTitle}}",
+              "type": "string"
+            },
+            {
+              "id": "a115c498-9e2f-4dc4-a9b3-aaa3f632597f",
+              "name": "metaDescription",
+              "value": "={{$('Parse SEO Output').item.json.metaDescription}}",
+              "type": "string"
+            },
+            {
+              "id": "0e094467-450b-48ab-95da-8666a7327ae4",
+              "name": "slug",
+              "value": "={{$('Parse SEO Output').item.json.slug}}",
+              "type": "string"
+            },
+            {
+              "id": "58c69ddd-267b-42ac-b17c-f7d980c25ced",
+              "name": "imageUrl",
+              "value": "={{$('Set ImageURL').item.json.imageUrl}}",
+              "type": "string"
+            },
+            {
+              "id": "315fe883-6630-46a3-9143-c362e5493b39",
+              "name": "postExcerptHtml",
+              "value": "={{$json.excerpt.rendered}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4880,
+        -1456
+      ],
+      "id": "af693d35-985b-4c27-be83-7cead439d52d",
+      "name": "Post Snapshot"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is a B2B blog post you should adapt to multiple channels.\n\nTitle: {{$json.seoTitle || $json.postTitle}}\nURL: {{$json.postUrl}}\nMeta description: {{$json.metaDescription}}\n\nHTML body:\n{{ $('Parse SEO Output').item.json.optimizedArticleHtml }}",
+        "options": {
+          "systemMessage": "You are a senior B2B content strategist.\n\nAdapt this article into three formats:\n1) LinkedIn post\n2) Twitter/X post\n3) Email body (newsletter)\n\nAudience: VP Marketing and Demand Gen leaders in B2B. Style: Insightful, practical, confident. No emojis.\n\nLINKEDIN:\n- 800–1300 characters.\n- Strong hook in the first 2 lines.\n- 3–5 short paragraphs or bullets.\n- 2–4 specific hashtags (e.g. #AccountBasedMarketing, #B2BMarketing).\n- Include the article URL once near the end.\n\nTWITTER_X:\n- Max 260 characters.\n- 1–2 short sentences plus 1–3 specific hashtags.\n- Include the article URL once\n- Ensure the entire post, including the link, fits within the standard character limit of Twitter/X) \n\nEMAIL:\n- subject (<= 60 characters).\n- previewText (<= 90 characters).\n- bodyHtml: 2–4 short paragraphs summarizing the value and inviting the reader to click through, containing one link to the article URL.\n\nReturn ONLY valid JSON with this exact structure:\n{\n  \"linkedinPost\": \"...\",\n  \"twitterPost\": \"...\",\n  \"email\": {\n    \"subject\": \"...\",\n    \"previewText\": \"...\",\n    \"bodyHtml\": \"...\"\n  }\n}\nDo not include markdown fences or any text outside the JSON."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        5104,
+        -1456
+      ],
+      "id": "bff85ff4-ec30-4330-b9a3-2883ba8adb38",
+      "name": "Multi‑Channel Adaptation Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        5184,
+        -1232
+      ],
+      "id": "83f51976-9578-436a-9fa2-cc578f64bea9",
+      "name": "Groq Chat Model – Multi‑Channel",
+      "credentials": {
+        "groqApi": {
+          "id": "Add your API key here",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize agent output to an object\nlet raw = $json.output || $json;\n\nif (typeof raw === 'string') {\n  let text = raw.trim();\n\n  // Strip ```\n  if (text.startsWith('```')) {\n    const lines = text.split('\\n');\n    // remove first line: ``````json\n    lines.shift();\n\n    // remove trailing ```\n    if (lines.length && lines[lines.length - 1].trim() === '```') {\n      lines.pop();\n    }\n\n    text = lines.join('\\n').trim();\n  }\n  \n  text = text.replace(/[\\u0000-\\u0019]+/g, '');\n  raw = JSON.parse(text);\n}\n\n// Build clean item for downstream nodes\nreturn [{\n  json: {\n    postUrl: $('Post Snapshot').item.json.postUrl,\n    postTitle: $('Post Snapshot').item.json.postTitle,\n    linkedinPost: raw.linkedinPost,\n    twitterPost: raw.twitterPost,\n    email: raw.email\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5456,
+        -1456
+      ],
+      "id": "07a59d88-2b5a-4858-81f2-351d6966e6d3",
+      "name": "Parse Multi‑Channel Output"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5000/api/public/v1/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"type\": \"schedule\",\n  \"date\": \"{{$now.plus({ minutes: 10 }).toISO()}}\",\n  \"shortLink\": false,\n  \"tags\": [],\n  \"posts\": [\n    {\n      \"integration\": {\n        \"id\": \"cmj6z2tjn0001pc913mdrfp8x\"\n      },\n      \"value\": [\n        {\n          \"content\": \"{{ $('Parse Multi‑Channel Output').item.json.linkedinPost }}\",\n          \"image\": []\n        }\n      ],\n      \"settings\": {\n        \"__type\": \"linkedin-page\",\n        \"post_as_images_carousel\": false\n      }\n    },\n    {\n      \"integration\": {\n        \"id\": \"cmj8pf7h60001mv8ai5dago3c\"\n      },\n      \"value\": [\n        {\n          \"content\": \"{{ $('Parse Multi‑Channel Output').item.json.twitterPost }}\",\n          \"image\": []\n        }\n      ],\n      \"settings\": {\n        \"__type\": \"x\",\n        \"who_can_reply_post\": \"everyone\",\n        \"community\": \"\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        6128,
+        -1552
+      ],
+      "id": "01a5a2cf-d4be-4ac3-af3e-09f9a8b07ec9",
+      "name": "Postiz Create LinkedIn+X Post",
+      "notesInFlow": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Add your API key here",
+          "name": "PostizAPI"
+        }
+      },
+      "notes": "Schedule LinkedIn and X posts with Postiz"
+    },
+    {
+      "parameters": {
+        "url": "https://api.brevo.com/v3/contacts/lists/7/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5680,
+        -1360
+      ],
+      "id": "3992909b-93ac-4401-9aef-b5d2f6c7bd21",
+      "name": "Get Brevo Contacts",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Add your API key here",
+          "name": "Brevo Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n  {\n    to: [\n      {\n        email: $json.email,\n        name: $json.attributes.FIRSTNAME,\n      },\n    ],\n    templateId: 2,\n    params: {\n      subject: $('Parse Multi‑Channel Output').item.json.email.subject,\n      previewText: $('Parse Multi‑Channel Output').item.json.email.previewText,\n      bodyHtml: $('Parse Multi‑Channel Output').item.json.email.bodyHtml,\n      postUrl: $('Parse Multi‑Channel Output').item.json.postUrl,\n    },\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        6128,
+        -1360
+      ],
+      "id": "0bb12a85-016d-43a5-b726-ad0f8573dc32",
+      "name": "Send Brevo Email",
+      "notesInFlow": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Add your API key here",
+          "name": "Brevo Header Auth"
+        }
+      },
+      "notes": "Send mail to each contact"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "contacts",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        5904,
+        -1360
+      ],
+      "id": "193b0171-7479-4e99-a2c7-ceb96854e644",
+      "name": "Split Contacts List"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "topicKey",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        6576,
+        -1456
+      ],
+      "id": "6a3bb1a6-5a97-4630-a1b8-583065a678d6",
+      "name": "Merge",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1M1GE_8udR2rFftPnB0CjzUmAAmFMROsm_njHLMvAInA",
+          "mode": "list",
+          "cachedResultName": "Smarketers_n8n_content_marketing_automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M1GE_8udR2rFftPnB0CjzUmAAmFMROsm_njHLMvAInA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "CMA_Logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M1GE_8udR2rFftPnB0CjzUmAAmFMROsm_njHLMvAInA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "runDate": "={{ $json.runDate }}",
+            "Wordpress_topicTitle": "={{ $json.wordpress_topicTitle }}",
+            "Wordpress_postUrl": "={{ $json.wordpress_postUrl }}",
+            "Wordpress_imageUrl": "={{ $json.wordpress_imageUrl }}",
+            "Wordpress_metaDescription": "={{ $json.wordpress_metaDescription }}",
+            "linkedinPost": "={{ $json.linkedinPost }}",
+            "twitterPost": "={{ $json.twitterPost }}",
+            "brevoContactsSent": "={{ $json.brevoEmailsSent }}",
+            "EmailPost_Brevo": "={{ $json.emailPostBrevo }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "runDate",
+              "displayName": "runDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Wordpress_topicTitle",
+              "displayName": "Wordpress_topicTitle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Wordpress_postUrl",
+              "displayName": "Wordpress_postUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Wordpress_imageUrl",
+              "displayName": "Wordpress_imageUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Wordpress_metaDescription",
+              "displayName": "Wordpress_metaDescription",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "linkedinPost",
+              "displayName": "linkedinPost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "twitterPost",
+              "displayName": "twitterPost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EmailPost_Brevo",
+              "displayName": "EmailPost_Brevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "brevoContactsSent",
+              "displayName": "brevoContactsSent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        7024,
+        -1456
+      ],
+      "id": "c716cf3d-ec1f-464f-9139-b4403b28ad41",
+      "name": "Log to Google Sheet",
+      "retryOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YLjKOJwSgpgI2111",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0076c8f2-5666-447f-8ff9-2360ec253d9e",
+              "name": "topicKey",
+              "value": "={{ $('Post Snapshot').item.json.postId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6352,
+        -1552
+      ],
+      "id": "6078b774-66e8-4b20-86d3-5ec3292341f4",
+      "name": "Set topicKey for Postiz"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f91f3deb-1385-4524-9a5a-08ebef0cbd7e",
+              "name": "topicKey",
+              "value": "={{ $('Post Snapshot').item.json.postId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6352,
+        -1360
+      ],
+      "id": "cfa866db-3be5-4840-ba38-bea605e5f621",
+      "name": "Set topicKey for Brevo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all merged items from Merge\nconst items = $items();\n\n// Use the first merged item as representative\nconst first = items[0].json;\n\n// Covert Date Format to Day and Time in IST\nconst now = new Date();\nconst options = {\n  day: '2-digit',\n  month: 'short',\n  year: 'numeric',\n  hour: '2-digit',\n  minute: '2-digit',\n  second: '2-digit',\n  hour12: true,\n  timeZone: 'Asia/Kolkata',\n};\nconst formattedRunDate = now.toLocaleString('en-GB', options).replace(',', '');\n\n// Build one summary object for this entire run\nreturn [\n  {\n    json: {\n      runDate: formattedRunDate + ' IST',\n      wordpress_topicTitle: first.wordpress_topicTitle || $('Post Snapshot').first().json.seoTitle,\n      wordpress_postUrl: $('Post Snapshot').first().json.postUrl,\n      wordpress_imageUrl: $('Post Snapshot').first().json.imageUrl,\n      wordpress_metaDescription: $('Post Snapshot').first().json.metaDescription,\n      linkedinPost: $('Parse Multi‑Channel Output').first().json.linkedinPost,\n      twitterPost: $('Parse Multi‑Channel Output').first().json.twitterPost,\n      emailPostBrevo: $('Parse Multi‑Channel Output').first().json.email.bodyHtml,\n      brevoEmailsSent: items.length / 2     // or items.length / 2 if you want unique contacts\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6800,
+        -1456
+      ],
+      "id": "719c63e7-49cd-40c1-a589-494dc19ced18",
+      "name": "Summarize Post Details"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09PZNNLG1G",
+          "mode": "list",
+          "cachedResultName": "smarketers-automation-alerts"
+        },
+        "text": "=✅ *Content Marketing Automation Workflow Succeeded*\n- *Topic*: {{$('Summarize Post Details').item.json.wordpress_topicTitle}}\n- *WordPress URL*: {{$('Summarize Post Details').item.json.wordpress_postUrl}}\n- LinkedIn and Twitter(X) posts scheduled\n- Email sent via Brevo\n- *Logged at*: {{$('Summarize Post Details').item.json.runDate}}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        7248,
+        -1456
+      ],
+      "id": "f64b6a31-cce4-4830-9c32-7a1dc91f6c0d",
+      "name": "Send Slack message",
+      "webhookId": "43778583-609c-49a8-b307-01d2b808fe42",
+      "credentials": {
+        "slackApi": {
+          "id": "Add your API key here",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c6fd442c-7188-4820-abd5-f874f56a3e17",
+              "name": "niche",
+              "value": "Account Based Marketing",
+              "type": "string"
+            },
+            {
+              "id": "a76c2e7c-71c3-4144-9d19-a10953394094",
+              "name": "language",
+              "value": "en",
+              "type": "string"
+            },
+            {
+              "id": "f4da2ce1-4899-46af-ac59-51b1616ecf52",
+              "name": "targetAudience",
+              "value": "VP Marketing & Demand Gen Managers in North America",
+              "type": "string"
+            },
+            {
+              "id": "7703dccf-57cf-42fe-95a6-be5686b0e2df",
+              "name": "brandVoice",
+              "value": "Insightful, practical, confident",
+              "type": "string"
+            },
+            {
+              "id": "dfbce47a-1cc3-404a-bc63-ba499f7fe3bb",
+              "name": "trendsApiUrl",
+              "value": "https://serpapi.com/search.json",
+              "type": "string"
+            },
+            {
+              "id": "a5d7841a-7cba-4679-9252-034fabe83406",
+              "name": "keywordApiUrl",
+              "value": "https://serpapi.com/search.json",
+              "type": "string"
+            },
+            {
+              "id": "5a76d108-8056-4e75-b0d2-8c8531b89183",
+              "name": "wpBaseUrl ",
+              "value": "https://public-api.wordpress.com/wp/v2/sites/automatewithtarun.wordpress.com/posts",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -16,
+        -1456
+      ],
+      "id": "1f783e54-2b6f-449e-a1cb-1d822ed3cd21",
+      "name": "Topic Configurations",
+      "notesInFlow": true,
+      "notes": "Set Client Configs"
+    }
+  ],
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2025-12-25T14:20:35.007+05:30",
+          "Readable date": "December 25th 2025, 2:20:35 pm",
+          "Readable time": "2:20:35 pm",
+          "Day of week": "Thursday",
+          "Year": "2025",
+          "Month": "December",
+          "Day of month": "25",
+          "Hour": "14",
+          "Minute": "20",
+          "Second": "35",
+          "Timezone": "Asia/Kolkata (UTC+05:30)"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Topic Configurations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Google Trends": {
+      "main": [
+        [
+          {
+            "node": "Get Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Keywords": {
+      "main": [
+        [
+          {
+            "node": "Merge Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Topics": {
+      "main": [
+        [
+          {
+            "node": "Topic Research AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Topic Research AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Topics": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Brief AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model - Topics": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Topic Research AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model - Brief": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Brief AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Brief": {
+      "main": [
+        [
+          {
+            "node": "Draft AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft AI Agent": {
+      "main": [
+        [
+          {
+            "node": "SEO Optimization Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SEO Optimization Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Optimization Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse SEO Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SEO Output": {
+      "main": [
+        [
+          {
+            "node": "Image Prompt AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Image Prompt AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image Prompt AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "Workers AI Image Gen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workers AI Image Gen": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Upload to FreeImage Host",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to FreeImage Host": {
+      "main": [
+        [
+          {
+            "node": "Set ImageURL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set ImageURL": {
+      "main": [
+        [
+          {
+            "node": "Create WP Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create WP Post": {
+      "main": [
+        [
+          {
+            "node": "Post Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Multi‑Channel Adaptation Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model – Multi‑Channel": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Multi‑Channel Adaptation Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Multi‑Channel Adaptation Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Multi‑Channel Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Multi‑Channel Output": {
+      "main": [
+        [
+          {
+            "node": "Postiz Create LinkedIn+X Post",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Brevo Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postiz Create LinkedIn+X Post": {
+      "main": [
+        [
+          {
+            "node": "Set topicKey for Postiz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Brevo Contacts": {
+      "main": [
+        [
+          {
+            "node": "Split Contacts List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Contacts List": {
+      "main": [
+        [
+          {
+            "node": "Send Brevo Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Brevo Email": {
+      "main": [
+        [
+          {
+            "node": "Set topicKey for Brevo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Summarize Post Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set topicKey for Postiz": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set topicKey for Brevo": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Summarize Post Details": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Slack message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Topic Configurations": {
+      "main": [
+        [
+          {
+            "node": "Get Google Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "lSLER1t3RCkgxYwm"
+  },
+  "versionId": "5b126ce9-f73e-4dbb-bd8a-5701ea5cc491",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "70321fe66af109d0a3fcdbd98bb49113e0576c33a3650c8e744089a263f8e5b1"
+  },
+  "id": "tb6iLKsayoKpo2sZ",
+  "tags": []
+}
