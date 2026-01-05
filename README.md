@@ -19,21 +19,33 @@
 
 ## Overview:
 
-End-to-end AI workflow automation using n8n, LLMs, and API-based orchestration for marketing and operational use cases.
+End-to-end AI workflow automation using n8n, LLMs, and API-based orchestration for marketing and operational workflows.
 
 This n8n workflow automates content marketing: generates topics, drafts articles with AI, optimizes for SEO, creates images, publishes to WordPress, and schedules posts to LinkedIn/X via Postiz and email via Brevo.
+
+## Problem Statement
+
+Manual content research, creation, and publishing workflows are time-consuming, error-prone, and difficult to scale consistently across teams.
+
+This project addresses:
+
+1. High manual effort in content creation
+2. Inconsistent output quality
+3. Lack of scalable automation for marketing operations
+
+## Solution
+
+An AI-powered automation pipeline that:
+
+1. Accepts structured inputs
+2. Uses LLMs for content generation
+3. Validates outputs using structured JSON parsing
+4. Automates publishing and reporting workflows
 
 ## Benefits: 
 1. Saves hours weekly on content creation
 2. Ensures consistent multi-channel posting
 3. Scalable for teams and multiple clients.
-
-## Import Instructions:
-
-1. In n8n, click "+" > "Import from File."
-2. Select the JSON from /workflows/.
-3. Set up credentials (e.g., API keys for Groq, Postiz, Brevo, WordPress).
-4. Test and activate.
 
 ## Screenshots:
 
@@ -70,3 +82,12 @@ This n8n workflow automates content marketing: generates topics, drafts articles
 <img width="1918" height="870" alt="image" src="https://github.com/user-attachments/assets/f455939c-1cee-4ac6-9459-13d5fa9ef6cc" />
 
 <img width="1854" height="881" alt="image" src="https://github.com/user-attachments/assets/ab36b952-c579-48f3-9b37-dc71d8c84e8f" />
+
+## Import Instructions:
+
+1. In n8n, click "+" > "Import from File."
+2. Select the JSON from /workflows/.
+3. Set up credentials (e.g., API keys for Groq, Postiz, Brevo, WordPress).
+4. Test and activate.
+
+## Thank You
