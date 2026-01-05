@@ -10,7 +10,6 @@
 
   **End-to-end automation**: AI Content → WordPress → LinkedIn/X (Postiz) → Email (Brevo)
 
-  ![Workflow](screenshots/n8n-content-marketing-workflow-screenshots.md)
 </div>
 
 ## [Quick Start →](docs/Setup-Guide.md)
