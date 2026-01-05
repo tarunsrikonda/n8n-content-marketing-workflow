@@ -1,6 +1,9 @@
 <div align="center">
+  
   ![n8n](https://img.shields.io/badge/n8n-active-brightgreen?logo=n8n)
+  
   ![Automation](https://img.shields.io/badge/Automation-Ready-blue)
+  
   ![GitHub Pages](https://img.shields.io/badge/Deployed-GitHub_Pages-green)
 
   # N8N Content Marketing Workflow
