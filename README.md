@@ -1,6 +1,17 @@
-![n8n](https://img.shields.io/badge/n8n-%23FF6D33?style=for-the-badge&logo=n8n&logoColor=white) 
+<div align="center">
+  ![n8n](https://img.shields.io/badge/n8n-active-brightgreen?logo=n8n)
+  ![Automation](https://img.shields.io/badge/Automation-Ready-blue)
+  ![GitHub Pages](https://img.shields.io/badge/Deployed-GitHub_Pages-green)
 
-![Automation](https://img.shields.io/badge/Automation-Ready-brightgreen)
+  # N8N Content Marketing Workflow
+
+  **End-to-end automation**: AI Content → WordPress → LinkedIn/X (Postiz) → Email (Brevo)
+
+  ![Workflow](screenshots/n8n-content-marketing-workflow-screenshots.md)
+</div>
+
+## [Quick Start →](docs/Setup-Guide.md)
+
 
 # n8n-content-marketing-workflow
 
